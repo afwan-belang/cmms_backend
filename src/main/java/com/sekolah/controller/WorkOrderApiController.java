@@ -40,7 +40,6 @@ public class WorkOrderApiController {
         return list;
     }
 
-    // --- FIX BUG STATISTIK DISINI ---
     @PostMapping
     public boolean create(@RequestBody Map<String, Object> payload) {
         Connection conn = null;
@@ -75,6 +74,28 @@ public class WorkOrderApiController {
         }
     }
 
+    // --- FITUR BARU: TEKNISI MENGAMBIL TUGAS ---
+    @PutMapping("/{id}/take")
+    public boolean takeTicket(@PathVariable int id, @RequestBody Map<String, Integer> payload) {
+        int technicianId = payload.get("technicianId");
+
+        // Ubah status jadi IN_PROGRESS dan catat siapa teknisinya, HANYA JIKA statusnya masih OPEN
+        String sql = "UPDATE work_orders SET status = 'IN_PROGRESS', technician_id = ? WHERE wo_id = ? AND status = 'OPEN'";
+
+        try (Connection conn = DatabaseConnection.connect();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setInt(1, technicianId);
+            ps.setInt(2, id);
+
+            return ps.executeUpdate() > 0;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     @PutMapping("/{id}/complete")
     public boolean complete(@PathVariable int id, @RequestBody Map<String, String> payload) {
         Connection conn = null;
@@ -83,11 +104,18 @@ public class WorkOrderApiController {
             conn.setAutoCommit(false);
 
             // 1. Update WO jadi COMPLETED
-            String sqlWO = "UPDATE work_orders SET status = 'COMPLETED', action_taken = ? WHERE wo_id = ?";
+            // MODIFIKASI: Pastikan tiket hanya bisa di-complete jika statusnya IN_PROGRESS
+            String sqlWO = "UPDATE work_orders SET status = 'COMPLETED', action_taken = ? WHERE wo_id = ? AND status = 'IN_PROGRESS'";
             try (PreparedStatement psWO = conn.prepareStatement(sqlWO)) {
                 psWO.setString(1, payload.get("action"));
                 psWO.setInt(2, id);
-                psWO.executeUpdate();
+                int rowsUpdated = psWO.executeUpdate();
+
+                // Jika tidak ada baris yang ter-update (mungkin status bukan IN_PROGRESS), batalkan transaksi
+                if (rowsUpdated == 0) {
+                    conn.rollback();
+                    return false;
+                }
             }
 
             // 2. Ambil Asset ID
