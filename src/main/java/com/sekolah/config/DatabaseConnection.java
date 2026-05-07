@@ -16,7 +16,7 @@ public class DatabaseConnection {
     // 3. Password Database
     // Kosongkan string ("") jika MySQL kamu tidak dipassword
     // Jika nanti error "Access Denied", kita akan atur user khusus.
-    private static final String PASSWORD = "afwan#22132132109109";
+    private static final String PASSWORD = "";
 
     public static Connection connect() {
         Connection conn = null;
